@@ -10,42 +10,27 @@ namespace Mb.ExcelExtensions
     public class SortFunctions
     {
         [ExcelFunction]
-        public static object[,] VSort(object[,] data, object[,] sortParams, bool test)
+        public static object[,] VSort(object[,] data, object[,] sortParams, bool emptyLast = true)
         {
             var r = ToRows(data);
-            var rows = r.OrderBy(x => 1);
-
-            for (var i = 0; i < sortParams.GetLength(0); i++) {
-                if (sortParams[i, 0] is double) {
-                    var col = (int)(double)sortParams[i, 0];
-                    rows = rows.ThenBy(x => Val(x, col));
-                }
-            }
-
-            var sortedRows = rows.ToArray();
-
-            var sorted = new object[data.GetLength(0), data.GetLength(1)];
-
-            for (var i = 0; i < data.GetLength(0); i++)
-            {
-                for (var j = 0; j < data.GetLength(1); j++)
-                {
-                    sorted[i, j] = sortedRows[i][j];
-                }
-            }
-
-            return sorted;
+            var sortParamArray = ToSortParams(sortParams);
+            var sorted = Sorter.Sort(r, sortParamArray, emptyLast);
+            return To2DArray(sorted);
         }
 
-        private static object Val(object[] arr, int rowNum)
+        private static SortParam[] ToSortParams(object[,] sortParams)
         {
-            return "X";
-            if (arr[rowNum - 1] is ExcelEmpty)
+            var sortParamList = new List<SortParam>();
+            for (var i = 0; i < sortParams.GetLength(0); i++)
             {
-                return "Z";
+                if (sortParams[i,0] is double)
+                {
+                    sortParamList.Add(new SortParam{Col = Convert.ToInt32(sortParams[i, 0])});
+                }
             }
-            return arr[rowNum - 1];
+            return sortParamList.ToArray();
         }
+
         [ExcelFunction]
         public static object[,] VFilter(object[,] data, object[,] filterParams)
         {
@@ -105,23 +90,11 @@ namespace Mb.ExcelExtensions
             {
                 for (var i = 0; i < table.GetLength(0); i++)
                 {
-                    var isEmpty = true;
                     for (var j = 0; j < table.GetLength(1); j++)
                     {
-                        if (table[i, j] is ExcelEmpty)
-                        {
-                            joined[c, j] = ExcelError.ExcelErrorNA;
-                        }
-                        else
-                        {
-                            joined[c, j] = table[i, j];
-                            isEmpty = false;
-                        }
+                        joined[c, j] = table[i, j] is ExcelEmpty ? "" : table[i, j];
                     }
-                    if (!isEmpty)
-                    {
-                        c++;
-                    }
+                    c++;
                 }
             }
 
@@ -147,9 +120,9 @@ namespace Mb.ExcelExtensions
             var cols = multiArray.Select(a => a.Length).Max();
 
             var returnArray = new object[rows, cols];
-            for (var i = 0; i <= multiArray.Length; i++)
+            for (var i = 0; i < multiArray.Length; i++)
             {
-                for (var j = 0; j <= multiArray[i].Length; j++)
+                for (var j = 0; j < multiArray[i].Length; j++)
                 {
                     returnArray[i, j] = multiArray[i][j];
                 }
@@ -165,7 +138,9 @@ namespace Mb.ExcelExtensions
                 var row = new object[table.GetLength(1)];
                 for (var j = 0; j < table.GetLength(1); j++)
                 {
-                    row[j] = table[i, j];
+                    row[j] = table[i, j] is ExcelEmpty
+                        ? ""
+                        : table[i, j] is ExcelError ? null : table[i, j];
                 }
                 rows[i] = row;
             }
