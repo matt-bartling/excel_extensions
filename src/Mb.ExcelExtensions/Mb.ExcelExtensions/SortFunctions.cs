@@ -10,6 +10,45 @@ namespace Mb.ExcelExtensions
     public class SortFunctions
     {
         [ExcelFunction]
+        public static object[,] VUnique(object[,] data)
+        {
+            var result = CreateArray(data.GetLength(0), data.GetLength(1));
+            var unique = new Dictionary<string, string>();
+            var rowCount = 0;
+            for (var i = 0; i < data.GetLength(0); i++)
+            {
+                var key = ToKey(data, i);
+                if (!string.IsNullOrEmpty(key) && !unique.ContainsKey(key))
+                {
+                    unique[key] = key;
+                    for (var j = 0; j < data.GetLength(1); j++)
+                    {
+                        result[rowCount, j] = data[i, j];
+                    }
+                    rowCount++;
+                }
+            }
+
+            return result;
+        }
+        [ExcelFunction]
+        public static object[,] SubRange(object[,] data, int startCol, int startRow, int endCol, int endRow)
+        {
+            var endRowIndex = Math.Min(endRow - 1, data.GetLength(0) - 1);
+            var endColIndex = Math.Min(endCol - 1, data.GetLength(1) - 1);
+            var startRowIndex = startRow - 1;
+            var startColIndex = startCol - 1;
+            var array = new object[endRowIndex - startRowIndex + 1, endColIndex - startColIndex + 1];
+            for (var i = startRowIndex; i <= endRowIndex; i++)
+            {
+                for (var j = startColIndex; j <= endColIndex; j++)
+                {
+                    array[i - startRowIndex, j - startColIndex] = data[i, j];
+                }
+            }
+            return array;
+        }
+        [ExcelFunction]
         public static object[,] VSort(object[,] data, object[,] sortParams, bool emptyLast = true)
         {
             var r = ToRows(data);
@@ -32,13 +71,13 @@ namespace Mb.ExcelExtensions
         }
 
         [ExcelFunction]
-        public static object[,] VFilter(object[,] data, object[,] filterParams)
+        public static object[,] VFilter(object[,] data, object[,] filterParams, bool negativeMatch = false)
         {
             var results = CreateArray(data.GetLength(0), data.GetLength(1));
             var resultCount = 0;
             for (var i = 0; i < data.GetLength(0); i++)
             {
-                if (MatchesFilter(data, i, filterParams))
+                if (MatchesFilter(data, i, filterParams, negativeMatch))
                 {
                     for (var j = 0; j < data.GetLength(1); j++)
                     {
@@ -50,11 +89,13 @@ namespace Mb.ExcelExtensions
             return results;
         }
 
-        private static bool MatchesFilter(object[,] dataTable, int dataRow, object[,] filterTable)
+        private static bool MatchesFilter(object[,] dataTable, int dataRow, object[,] filterTable, bool negativeMatch)
         {
             for (var j = 0; j < filterTable.GetLength(0); j++)
             {
-                if (!MatchesFilter(dataTable, dataRow, filterTable, j))
+                var matchesFilter = MatchesFilter(dataTable, dataRow, filterTable, j);
+                if ((!matchesFilter && !negativeMatch) ||
+                    (matchesFilter && negativeMatch))
                 {
                     return false;
                 }
@@ -67,7 +108,7 @@ namespace Mb.ExcelExtensions
             if (filterTable[filterRow, 0] is double)
             {
                 var col = (int)(double)filterTable[filterRow, 0] - 1;
-                if (filterTable[filterRow, 2] is ExcelEmpty)
+                if (filterTable[filterRow, 1] is ExcelEmpty)
                 {
                     return dataTable[dataRow, col].Equals(filterTable[filterRow, 1]);
                 }
@@ -157,6 +198,16 @@ namespace Mb.ExcelExtensions
                 }
             }
             return array;
+        }
+
+        private static string ToKey(object[,] data, int row)
+        {
+            object[] keyArray = new object[data.GetLength(1)];
+            for (var j = 0; j < data.GetLength(1); j++)
+            {
+                keyArray[j] = data[row, j];
+            }
+            return string.Join(",", keyArray);
         }
     }
 }
